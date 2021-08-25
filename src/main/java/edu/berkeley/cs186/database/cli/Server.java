@@ -40,3 +40,65 @@ public class Server {
         
         // Use the following after completing project 5 (recovery)
         // Database db = new Database("demo", 25, new LockManager(), new ClockEvictionPolicy(), true);
+
+        Server server = new Server();
+        server.listen(db);
+        db.close();
+    }
+
+    class ClientThread extends Thread {
+        Socket socket;
+        Database db;
+
+        public ClientThread(Socket socket, Database db) {
+            this.socket = socket;
+            this.db = db;
+        }
+
+        public void run() {
+            PrintStream out;
+            InputStream in;
+            try {
+                out = new PrintStream(this.socket.getOutputStream(), true);
+                in = new BufferedInputStream(this.socket.getInputStream());
+            } catch (IOException e) {
+                e.printStackTrace();
+                return;
+            }
+
+            try {
+                CommandLineInterface cli = new CommandLineInterface(db, in, out);
+                cli.run();
+            } catch (Exception e) {
+                // Fatal error: print stack trace on both the server and client
+                e.printStackTrace();
+                e.printStackTrace(out);
+            } finally {
+                try {
+                    this.socket.close();
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
+        }
+    }
+
+    public Server() {
+        this(DEFAULT_PORT);
+    }
+
+    public Server(int port) {
+        this.port = port;
+    }
+
+    public void listen(Database db) {
+        try (ServerSocket serverSocket = new ServerSocket(this.port)) {
+            while (true) {
+                new ClientThread(serverSocket.accept(), db).start();
+            }
+        } catch (IOException e) {
+            System.err.println("Could not listen on port " + this.port);
+            System.exit(-1);
+        }
+    }
+}
